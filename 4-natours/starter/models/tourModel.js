@@ -61,6 +61,10 @@ const tourSchema = new mongoose.Schema(
       select: false, // hide this property from the client
     },
     startDates: [Date], // dates for an array of tour instances
+    secretTour: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     toJSON: { virtuals: true }, // include the virtuals to be part of the objects
@@ -75,7 +79,7 @@ tourSchema.virtual('durationWeeks').get(function () {
 
 // create the model out of the schema, use upper case for models
 // models are fancier constructors complied from the schema definitions
-// pre document middleware, which runs before the .save() cmd and the .create() cmd
+// 👀 pre DOCUMENT MIDDLEWARES, which runs before the .save() cmd and the .create() cmd
 // AKA pre-save hook
 tourSchema.pre('save', function (next) {
   // pass the name as lowercase
@@ -83,18 +87,37 @@ tourSchema.pre('save', function (next) {
   next();
 });
 
-tourSchema.pre('save', function (next) {
-  console.log('Will save document...');
+// tourSchema.pre('save', function (next) {
+//   console.log('Will save document...');
+//   next();
+// });
+
+// // post document middleware runs after all the pre-middleware executions are completed, so we have the finished document
+// // as a param in the function
+// tourSchema.post('save', function (doc, next) {
+//   console.log(doc);
+//   next();
+// });
+// 👀 QUERY MIDDLEWARES // big difference is the 'find' keyword, meaning processing a query
+// use this to only show non-secret tours, working as view
+// use regular expression, apply to all functions starting with find (findOne, findOneAndUpdate...)
+tourSchema.pre(/^find/, function (next) {
+  this.find({ secretTour: { $ne: true } });
+  this.start = Date.now();
   next();
 });
 
-// post document middleware runs after all the pre-middleware executions are completed, so we have the finished document
-// as a param in the function
-tourSchema.post('save', function (doc, next) {
-  console.log(doc);
+tourSchema.post(/^find/, function (doc, next) {
+  console.log(`Query took ${Date.now() - this.start} milliseconds!`);
+  next();
+});
+
+//aggregation middleware
+tourSchema.pre('aggregate', function (next) {
+  // this points to the current aggregation object
+  this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
   next();
 });
 
 const Tour = mongoose.model('Tour', tourSchema);
-
 module.exports = Tour;
